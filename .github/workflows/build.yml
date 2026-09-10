@@ -1,4 +1,5 @@
 name: Build APK
+        run: flutter build apk --release --no-shrink --verbose
 
 on:
   push:
