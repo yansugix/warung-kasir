@@ -16,6 +16,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final _barcodeCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
+  final _capitalPriceCtrl = TextEditingController();
   final _priceCtrl = TextEditingController();
   final _stockCtrl = TextEditingController();
   String _unit = 'pcs';
@@ -30,6 +31,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       final p = widget.product!;
       _barcodeCtrl.text = p.barcode ?? '';
       _nameCtrl.text = p.name;
+      _capitalPriceCtrl.text = p.capitalPrice.toStringAsFixed(0);
       _priceCtrl.text = p.price.toStringAsFixed(0);
       _stockCtrl.text = p.stock.toString();
       _unit = p.unit;
@@ -54,6 +56,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       id: widget.product?.id,
       barcode: _barcodeCtrl.text.isEmpty ? null : _barcodeCtrl.text,
       name: _nameCtrl.text.trim(),
+      capitalPrice: double.tryParse(_capitalPriceCtrl.text) ?? 0,
       price: double.parse(_priceCtrl.text),
       stock: int.parse(_stockCtrl.text),
       unit: _unit,
@@ -139,6 +142,18 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   v == null || v.isEmpty ? 'Nama tidak boleh kosong' : null,
             ),
             const SizedBox(height: 16),
+            TextFormField(
+              controller: _capitalPriceCtrl,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: InputDecoration(
+                labelText: 'Harga Modal (opsional)',
+                prefixText: 'Rp ',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
             // Harga
             TextFormField(
               controller: _priceCtrl,
@@ -218,8 +233,22 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   }
 }
 
-class _BarcodeScannerScreen extends StatelessWidget {
+class _BarcodeScannerScreen extends StatefulWidget {
   const _BarcodeScannerScreen();
+
+  @override
+  State<_BarcodeScannerScreen> createState() => _BarcodeScannerScreenState();
+}
+
+class _BarcodeScannerScreenState extends State<_BarcodeScannerScreen> {
+  final MobileScannerController _controller = MobileScannerController();
+  bool _hasScanned = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -231,14 +260,48 @@ class _BarcodeScannerScreen extends StatelessWidget {
         ),
         backgroundColor: Colors.green[700],
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.flash_on, color: Colors.white),
+            onPressed: () => _controller.toggleTorch(),
+          ),
+        ],
       ),
-      body: MobileScanner(
-        onDetect: (capture) {
-          final barcode = capture.barcodes.firstOrNull;
-          if (barcode?.rawValue != null) {
-            Navigator.pop(context, barcode!.rawValue);
-          }
-        },
+      body: Stack(
+        children: [
+          MobileScanner(
+            controller: _controller,
+            onDetect: (capture) {
+              if (_hasScanned) return;
+              final barcode = capture.barcodes.firstOrNull;
+              if (barcode?.rawValue != null) {
+                _hasScanned = true;
+                Navigator.pop(context, barcode!.rawValue);
+              }
+            },
+          ),
+          // Overlay scan area
+          Center(
+            child: Container(
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.green, width: 3),
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          const Positioned(
+            bottom: 40,
+            left: 0,
+            right: 0,
+            child: Text(
+              'Arahkan kamera ke barcode',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white, fontSize: 16),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -20,16 +20,17 @@ class DBHelper {
 
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
-      CREATE TABLE products (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        barcode TEXT,
-        name TEXT NOT NULL,
-        price REAL NOT NULL,
-        stock INTEGER NOT NULL DEFAULT 0,
-        unit TEXT DEFAULT 'pcs',
-        created_at TEXT NOT NULL
-      )
-    ''');
+  CREATE TABLE products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    barcode TEXT,
+    name TEXT NOT NULL,
+    price REAL NOT NULL,
+    capital_price REAL NOT NULL DEFAULT 0,
+    stock INTEGER NOT NULL DEFAULT 0,
+    unit TEXT DEFAULT 'pcs',
+    created_at TEXT NOT NULL
+  )
+''');
 
     await db.execute('''
       CREATE TABLE transactions (
