@@ -1,0 +1,42 @@
+name: warung_kasir
+description: Aplikasi kasir warung dengan scanner barcode & print Bluetooth
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # Database
+  sqflite: ^2.3.3
+  path: ^1.9.0
+  
+  # Barcode Scanner
+  mobile_scanner: ^5.2.3
+  
+  # Print Bluetooth
+  print_bluetooth_thermal: ^1.0.10
+  
+  # Google Drive Backup
+  google_sign_in: ^6.2.1
+  googleapis: ^13.2.0
+  http: ^1.2.1
+  
+  # UI & Utilities
+  intl: ^0.19.0
+  uuid: ^4.4.0
+  flutter_slidable: ^3.1.0
+  cached_network_image: ^3.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
