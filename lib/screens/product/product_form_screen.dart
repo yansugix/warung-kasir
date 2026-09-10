@@ -1,0 +1,245 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import '../../database/db_helper.dart';
+import '../../models/product.dart';
+
+class ProductFormScreen extends StatefulWidget {
+  final Product? product;
+  const ProductFormScreen({super.key, this.product});
+
+  @override
+  State<ProductFormScreen> createState() => _ProductFormScreenState();
+}
+
+class _ProductFormScreenState extends State<ProductFormScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _barcodeCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
+  final _priceCtrl = TextEditingController();
+  final _stockCtrl = TextEditingController();
+  String _unit = 'pcs';
+  bool _saving = false;
+
+  final _units = ['pcs', 'kg', 'gram', 'liter', 'ml', 'dus', 'lusin'];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.product != null) {
+      final p = widget.product!;
+      _barcodeCtrl.text = p.barcode ?? '';
+      _nameCtrl.text = p.name;
+      _priceCtrl.text = p.price.toStringAsFixed(0);
+      _stockCtrl.text = p.stock.toString();
+      _unit = p.unit;
+    }
+  }
+
+  Future<void> _scanBarcode() async {
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const _BarcodeScannerScreen()),
+    );
+    if (result != null) {
+      setState(() => _barcodeCtrl.text = result);
+    }
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+
+    final product = Product(
+      id: widget.product?.id,
+      barcode: _barcodeCtrl.text.isEmpty ? null : _barcodeCtrl.text,
+      name: _nameCtrl.text.trim(),
+      price: double.parse(_priceCtrl.text),
+      stock: int.parse(_stockCtrl.text),
+      unit: _unit,
+      createdAt: DateTime.now().toIso8601String(),
+    );
+
+    final db = await DBHelper.instance.database;
+    if (widget.product == null) {
+      await db.insert('products', product.toMap());
+    } else {
+      await db.update(
+        'products',
+        product.toMap(),
+        where: 'id = ?',
+        whereArgs: [product.id],
+      );
+    }
+
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEdit = widget.product != null;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          isEdit ? 'Edit Produk' : 'Tambah Produk',
+          style: const TextStyle(color: Colors.white),
+        ),
+        backgroundColor: Colors.blue[700],
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Barcode
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _barcodeCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'Barcode (opsional)',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: _scanBarcode,
+                  icon: const Icon(Icons.qr_code_scanner),
+                  label: const Text('Scan'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green[700],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 16,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Nama
+            TextFormField(
+              controller: _nameCtrl,
+              decoration: InputDecoration(
+                labelText: 'Nama Produk *',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              validator: (v) =>
+                  v == null || v.isEmpty ? 'Nama tidak boleh kosong' : null,
+            ),
+            const SizedBox(height: 16),
+            // Harga
+            TextFormField(
+              controller: _priceCtrl,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: InputDecoration(
+                labelText: 'Harga Jual *',
+                prefixText: 'Rp ',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              validator: (v) =>
+                  v == null || v.isEmpty ? 'Harga tidak boleh kosong' : null,
+            ),
+            const SizedBox(height: 16),
+            // Stok + Satuan
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _stockCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(
+                      labelText: 'Stok *',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    validator: (v) =>
+                        v == null || v.isEmpty ? 'Stok wajib diisi' : null,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _unit,
+                    decoration: InputDecoration(
+                      labelText: 'Satuan',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    items: _units
+                        .map((u) => DropdownMenuItem(value: u, child: Text(u)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _unit = v!),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _saving ? null : _save,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue[700],
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: _saving
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : Text(
+                        isEdit ? 'Simpan Perubahan' : 'Tambah Produk',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BarcodeScannerScreen extends StatelessWidget {
+  const _BarcodeScannerScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Scan Barcode',
+          style: TextStyle(color: Colors.white),
+        ),
+        backgroundColor: Colors.green[700],
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: MobileScanner(
+        onDetect: (capture) {
+          final barcode = capture.barcodes.firstOrNull;
+          if (barcode?.rawValue != null) {
+            Navigator.pop(context, barcode!.rawValue);
+          }
+        },
+      ),
+    );
+  }
+}
