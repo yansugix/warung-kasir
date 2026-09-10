@@ -1,0 +1,63 @@
+class Product {
+  final int? id;
+  final String? barcode;
+  final String name;
+  final double price;
+  final int stock;
+  final String unit;
+  final String createdAt;
+
+  Product({
+    this.id,
+    this.barcode,
+    required this.name,
+    required this.price,
+    required this.stock,
+    this.unit = 'pcs',
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'barcode': barcode,
+      'name': name,
+      'price': price,
+      'stock': stock,
+      'unit': unit,
+      'created_at': createdAt,
+    };
+  }
+
+  factory Product.fromMap(Map<String, dynamic> map) {
+    return Product(
+      id: map['id'],
+      barcode: map['barcode'],
+      name: map['name'],
+      price: map['price'],
+      stock: map['stock'],
+      unit: map['unit'] ?? 'pcs',
+      createdAt: map['created_at'],
+    );
+  }
+
+  Product copyWith({
+    int? id,
+    String? barcode,
+    String? name,
+    double? price,
+    int? stock,
+    String? unit,
+    String? createdAt,
+  }) {
+    return Product(
+      id: id ?? this.id,
+      barcode: barcode ?? this.barcode,
+      name: name ?? this.name,
+      price: price ?? this.price,
+      stock: stock ?? this.stock,
+      unit: unit ?? this.unit,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+}
