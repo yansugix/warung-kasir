@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../database/db_helper.dart';
 import '../../models/product.dart';
@@ -155,6 +156,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
               ),
             ),
             // Harga
+            const SizedBox(height: 16),
             TextFormField(
               controller: _priceCtrl,
               keyboardType: TextInputType.number,
@@ -243,6 +245,22 @@ class _BarcodeScannerScreen extends StatefulWidget {
 class _BarcodeScannerScreenState extends State<_BarcodeScannerScreen> {
   final MobileScannerController _controller = MobileScannerController();
   bool _hasScanned = false;
+  bool _permissionGranted = false;
+  bool _permissionChecked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _requestPermission();
+  }
+
+  Future<void> _requestPermission() async {
+    final status = await Permission.camera.request();
+    setState(() {
+      _permissionGranted = status.isGranted;
+      _permissionChecked = true;
+    });
+  }
 
   @override
   void dispose() {
@@ -261,48 +279,72 @@ class _BarcodeScannerScreenState extends State<_BarcodeScannerScreen> {
         backgroundColor: Colors.green[700],
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.flash_on, color: Colors.white),
-            onPressed: () => _controller.toggleTorch(),
-          ),
+          if (_permissionGranted)
+            IconButton(
+              icon: const Icon(Icons.flash_on, color: Colors.white),
+              onPressed: () => _controller.toggleTorch(),
+            ),
         ],
       ),
-      body: Stack(
-        children: [
-          MobileScanner(
-            controller: _controller,
-            onDetect: (capture) {
-              if (_hasScanned) return;
-              final barcode = capture.barcodes.firstOrNull;
-              if (barcode?.rawValue != null) {
-                _hasScanned = true;
-                Navigator.pop(context, barcode!.rawValue);
-              }
-            },
-          ),
-          // Overlay scan area
-          Center(
-            child: Container(
-              width: 250,
-              height: 250,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.green, width: 3),
-                borderRadius: BorderRadius.circular(12),
+      body: !_permissionChecked
+          ? const Center(child: CircularProgressIndicator())
+          : !_permissionGranted
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.camera_alt, size: 64, color: Colors.grey),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Izin kamera diperlukan\nuntuk scan barcode',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () async {
+                      await openAppSettings();
+                    },
+                    child: const Text('Buka Pengaturan'),
+                  ),
+                ],
               ),
+            )
+          : Stack(
+              children: [
+                MobileScanner(
+                  controller: _controller,
+                  onDetect: (capture) {
+                    if (_hasScanned) return;
+                    final barcode = capture.barcodes.firstOrNull;
+                    if (barcode?.rawValue != null) {
+                      _hasScanned = true;
+                      Navigator.pop(context, barcode!.rawValue);
+                    }
+                  },
+                ),
+                Center(
+                  child: Container(
+                    width: 250,
+                    height: 250,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.green, width: 3),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const Positioned(
+                  bottom: 40,
+                  left: 0,
+                  right: 0,
+                  child: Text(
+                    'Arahkan kamera ke barcode',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ),
+              ],
             ),
-          ),
-          const Positioned(
-            bottom: 40,
-            left: 0,
-            right: 0,
-            child: Text(
-              'Arahkan kamera ke barcode',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white, fontSize: 16),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
