@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../database/db_helper.dart';
 import '../../models/product.dart';
 
@@ -40,11 +40,25 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   }
 
   Future<void> _scanBarcode() async {
+    final status = await Permission.camera.request();
+    if (!status.isGranted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Izin kamera diperlukan untuk scan barcode'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        await openAppSettings();
+      }
+      return;
+    }
+
     final result = await Navigator.push<String>(
       context,
       MaterialPageRoute(builder: (_) => const _BarcodeScannerScreen()),
     );
-    if (result != null) {
+    if (result != null && mounted) {
       setState(() => _barcodeCtrl.text = result);
     }
   }
@@ -64,19 +78,24 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       createdAt: DateTime.now().toIso8601String(),
     );
 
-    final db = await DBHelper.instance.database;
     if (widget.product == null) {
-      await db.insert('products', product.toMap());
+      await DBHelper.instance.insertProduct(product);
     } else {
-      await db.update(
-        'products',
-        product.toMap(),
-        where: 'id = ?',
-        whereArgs: [product.id],
-      );
+      await DBHelper.instance.updateProduct(product);
     }
 
+    setState(() => _saving = false);
     if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  void dispose() {
+    _barcodeCtrl.dispose();
+    _nameCtrl.dispose();
+    _capitalPriceCtrl.dispose();
+    _priceCtrl.dispose();
+    _stockCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -133,6 +152,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             // Nama
             TextFormField(
               controller: _nameCtrl,
+              textCapitalization: TextCapitalization.words,
               decoration: InputDecoration(
                 labelText: 'Nama Produk *',
                 border: OutlineInputBorder(
@@ -143,6 +163,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   v == null || v.isEmpty ? 'Nama tidak boleh kosong' : null,
             ),
             const SizedBox(height: 16),
+            // Harga Modal
             TextFormField(
               controller: _capitalPriceCtrl,
               keyboardType: TextInputType.number,
@@ -155,8 +176,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                 ),
               ),
             ),
-            // Harga
             const SizedBox(height: 16),
+            // Harga Jual
             TextFormField(
               controller: _priceCtrl,
               keyboardType: TextInputType.number,
@@ -235,6 +256,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   }
 }
 
+// ============ Barcode Scanner ============
 class _BarcodeScannerScreen extends StatefulWidget {
   const _BarcodeScannerScreen();
 
@@ -243,29 +265,31 @@ class _BarcodeScannerScreen extends StatefulWidget {
 }
 
 class _BarcodeScannerScreenState extends State<_BarcodeScannerScreen> {
-  final MobileScannerController _controller = MobileScannerController();
+  late final MobileScannerController _controller;
   bool _hasScanned = false;
-  bool _permissionGranted = false;
-  bool _permissionChecked = false;
 
   @override
   void initState() {
     super.initState();
-    _requestPermission();
-  }
-
-  Future<void> _requestPermission() async {
-    final status = await Permission.camera.request();
-    setState(() {
-      _permissionGranted = status.isGranted;
-      _permissionChecked = true;
-    });
+    _controller = MobileScannerController(
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      returnImage: false,
+    );
   }
 
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  void _onDetect(BarcodeCapture capture) {
+    if (_hasScanned) return;
+    final barcode = capture.barcodes.firstOrNull;
+    if (barcode?.rawValue != null) {
+      _hasScanned = true;
+      Navigator.pop(context, barcode!.rawValue);
+    }
   }
 
   @override
@@ -279,72 +303,76 @@ class _BarcodeScannerScreenState extends State<_BarcodeScannerScreen> {
         backgroundColor: Colors.green[700],
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
-          if (_permissionGranted)
-            IconButton(
-              icon: const Icon(Icons.flash_on, color: Colors.white),
-              onPressed: () => _controller.toggleTorch(),
-            ),
+          IconButton(
+            icon: const Icon(Icons.flash_on, color: Colors.white),
+            onPressed: () => _controller.toggleTorch(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.cameraswitch, color: Colors.white),
+            onPressed: () => _controller.switchCamera(),
+          ),
         ],
       ),
-      body: !_permissionChecked
-          ? const Center(child: CircularProgressIndicator())
-          : !_permissionGranted
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.camera_alt, size: 64, color: Colors.grey),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Izin kamera diperlukan\nuntuk scan barcode',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 16),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () async {
-                      await openAppSettings();
-                    },
-                    child: const Text('Buka Pengaturan'),
-                  ),
-                ],
-              ),
-            )
-          : Stack(
+      body: Stack(
+        children: [
+          MobileScanner(
+            controller: _controller,
+            onDetect: _onDetect,
+          ),
+          // Overlay
+          ColorFiltered(
+            colorFilter: ColorFilter.mode(
+              Colors.black.withOpacity(0.5),
+              BlendMode.srcOut,
+            ),
+            child: Stack(
               children: [
-                MobileScanner(
-                  controller: _controller,
-                  onDetect: (capture) {
-                    if (_hasScanned) return;
-                    final barcode = capture.barcodes.firstOrNull;
-                    if (barcode?.rawValue != null) {
-                      _hasScanned = true;
-                      Navigator.pop(context, barcode!.rawValue);
-                    }
-                  },
+                Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.transparent,
+                    backgroundBlendMode: BlendMode.dstOut,
+                  ),
                 ),
                 Center(
                   child: Container(
-                    width: 250,
-                    height: 250,
+                    width: 260,
+                    height: 160,
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.green, width: 3),
+                      color: Colors.red,
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
-                const Positioned(
-                  bottom: 40,
-                  left: 0,
-                  right: 0,
-                  child: Text(
-                    'Arahkan kamera ke barcode',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white, fontSize: 16),
-                  ),
-                ),
               ],
             ),
+          ),
+          // Frame border
+          Center(
+            child: Container(
+              width: 260,
+              height: 160,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.green, width: 3),
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          const Positioned(
+            bottom: 50,
+            left: 0,
+            right: 0,
+            child: Text(
+              'Arahkan kamera ke barcode',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                shadows: [Shadow(blurRadius: 4, color: Colors.black)],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

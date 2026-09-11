@@ -1,6 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'product/product_list_screen.dart';
 import 'kasir/kasir_screen.dart';
+import 'history/history_screen.dart';
+import 'backup/backup_screen.dart';
+import 'settings/settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -16,6 +19,16 @@ class HomeScreen extends StatelessWidget {
         ),
         backgroundColor: Colors.green[700],
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings, color: Colors.white),
+            tooltip: 'Pengaturan',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
@@ -51,6 +64,34 @@ class HomeScreen extends StatelessWidget {
                       MaterialPageRoute(
                         builder: (_) => const ProductListScreen(),
                       ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _MenuCard(
+                    icon: Icons.receipt_long,
+                    label: 'Riwayat',
+                    color: Colors.orange[700]!,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const HistoryScreen()),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _MenuCard(
+                    icon: Icons.cloud_upload,
+                    label: 'Backup',
+                    color: Colors.purple[700]!,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const BackupScreen()),
                     ),
                   ),
                 ),
