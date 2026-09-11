@@ -1,6 +1,7 @@
-﻿import 'dart:io';
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:io';
 import '../models/transaction.dart';
 import 'app_settings.dart';
 
@@ -31,11 +32,29 @@ class PrintService {
     return 'Rp' + result.reversed.join('');
   }
 
+  static Future<bool> requestBluetoothPermissions() async {
+    if (Platform.isAndroid) {
+      Map<Permission, PermissionStatus> statuses = await [
+        Permission.bluetoothScan,
+        Permission.bluetoothConnect,
+        Permission.location,
+      ].request();
+
+      bool allGranted = statuses.values.every((status) => status.isGranted);
+      return allGranted;
+    }
+    return true;
+  }
+
   static Future<List<BluetoothInfo>> getPairedDevices() async {
     try {
+      final hasPermission = await requestBluetoothPermissions();
+      if (!hasPermission) return [];
+
       final paired = await PrintBluetoothThermal.pairedBluetooths;
       return paired;
     } catch (e) {
+      debugPrint('Error getting paired devices: $e');
       return [];
     }
   }
@@ -70,7 +89,6 @@ class PrintService {
 
     final buffer = StringBuffer();
 
-    // Header
     buffer.writeln(_center(storeName));
     if (storeAddress.isNotEmpty) {
       buffer.writeln(_center(storeAddress));
@@ -80,7 +98,6 @@ class PrintService {
     }
     buffer.writeln(_line('='));
 
-    // Info transaksi
     final dt = DateTime.parse(tx.createdAt);
     final day = dt.day.toString().padLeft(2, '0');
     final month = dt.month.toString().padLeft(2, '0');
@@ -89,11 +106,11 @@ class PrintService {
     final minute = dt.minute.toString().padLeft(2, '0');
     final dateStr = '$day/$month/$year';
     final timeStr = '$hour:$minute';
+    
     buffer.writeln('No: ' + tx.invoice);
     buffer.writeln('Tgl: ' + dateStr + '  ' + timeStr);
     buffer.writeln(_line());
 
-    // Items
     for (final item in tx.items) {
       final name = item.productName.length > _lineWidth
           ? item.productName.substring(0, _lineWidth)
@@ -144,13 +161,39 @@ class PrintService {
     }
   }
 
-  static Future<void> showPrintDialog(
-    BuildContext context,
-    Transaction tx,
-  ) async {
-    final devices = await getPairedDevices();
-
+  static Future<void> showPrintDialog(BuildContext context, Transaction tx) async {
+    final hasPermission = await requestBluetoothPermissions();
     if (!context.mounted) return;
+    
+    if (!hasPermission) {
+       ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Izin Bluetooth/Lokasi ditolak. Buka pengaturan aplikasi untuk mengizinkan.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Tampilkan loading ambil perangkat
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Mencari printer Bluetooth...'),
+          ],
+        ),
+      ),
+    );
+
+    final devices = await getPairedDevices();
+    
+    if (!context.mounted) return;
+    Navigator.pop(context); // Tutup loading
 
     if (devices.isEmpty) {
       showDialog(
@@ -158,8 +201,12 @@ class PrintService {
         builder: (_) => AlertDialog(
           title: const Text('Printer Tidak Ditemukan'),
           content: const Text(
-            'Tidak ada printer Bluetooth yang terpasang.\n\n'
-            'Pastikan printer sudah dinyalakan dan dipair melalui Pengaturan Bluetooth HP.',
+            'Tidak ada printer Bluetooth yang ditemukan atau dipasangkan.\n\n'
+            'Cara Memasangkan:\n'
+            '1. Buka Pengaturan HP > Bluetooth.\n'
+            '2. Hidupkan Bluetooth dan Printer kamu.\n'
+            '3. Pasangkan (Pair) printer di pengaturan.\n'
+            '4. Kembali ke aplikasi ini dan coba lagi.',
           ),
           actions: [
             TextButton(
@@ -180,8 +227,8 @@ class PrintService {
         content: StatefulBuilder(
           builder: (ctx2, setState) => SizedBox(
             width: double.maxFinite,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            child: ListView(
+              shrinkWrap: true,
               children: devices
                   .map(
                     (d) => RadioListTile<String>(
@@ -235,7 +282,7 @@ class PrintService {
       if (loadingCtx.mounted) {
         ScaffoldMessenger.of(loadingCtx).showSnackBar(
           const SnackBar(
-            content: Text('Gagal terhubung ke printer'),
+            content: Text('Gagal terhubung ke printer. Pastikan printer hidup.'),
             backgroundColor: Colors.red,
           ),
         );
